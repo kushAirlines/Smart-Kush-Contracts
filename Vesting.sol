@@ -50,10 +50,7 @@ contract SimpleVesting is Ownable {
         return _releasableAmount();
     }
 
-    function revocable() public view returns(bool) {
-        return _revocable;
-    }
-
+   
 
     function claim() public {
         require(msg.sender == _beneficiary,"You are not authorized!");
