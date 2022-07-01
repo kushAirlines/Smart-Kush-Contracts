@@ -1,0 +1,78 @@
+pragma solidity ^0.8.0;
+// SPDX-License-Identifier: MIT
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+contract SimpleStaking is Ownable {
+
+    using SafeERC20 for IERC20;
+
+    IERC20 public token;
+
+    struct StakeInfo {
+        uint256 amount;
+        uint256 endTime;
+        bool hasStaked;
+    }
+    mapping(address => StakeInfo) private _stakes;
+    
+    uint256 public totalStaked;
+    uint256 public lockingDuration = 280 * 12;
+
+    event Staked(address from, uint256 amount, uint256 time);
+    event UnStaked(address from, uint256 amount, uint256 time);
+
+
+    constructor(address _token) {
+        require(_token != address(0),"Graveyard!");
+        token = IERC20(_token);
+    }
+
+
+    function getStakeAmount(address _staker) external view returns(uint256) {
+        return _stakes[_staker].amount;
+    }
+ 
+
+    function stake(uint256 amount) external {
+        require (amount > 0, "0 is not a valid amount for staking.");
+        StakeInfo storage staker = _stakes[msg.sender];
+        if(!staker.hasStaked == false) {
+            staker.hasStaked = true;
+        } 
+        else {
+            require(
+                    block.timestamp < staker.endTime,
+                    "Time is expired. Withdraw and stake."
+            );
+        }
+        staker.amount += amount;
+        staker.endTime = block.timestamp + lockingDuration;
+        totalStaked += amount;
+        token.safeTransferFrom(payable(msg.sender),address(this),amount);
+
+        emit Staked(msg.sender, amount, block.timestamp);
+    }
+
+
+    function withdraw(uint256 amount) external {
+        require(amount > 0, "You cannot withdraw 0 amount.");
+        StakeInfo storage staker = _stakes[msg.sender];
+        require(staker.hasStaked, "0 stake found!");
+        require(
+                block.timestamp >= staker.endTime, 
+                "Stake in still progress."
+        );
+        
+        staker.amount += amount;
+        totalStaked -= amount;
+        if(staker.amount == 0) {
+                staker.hasStaked = false;
+        }
+        token.safeTransfer(payable(msg.sender), amount);
+
+        emit UnStaked(msg.sender, amount, block.timestamp);
+    }
+
+}
